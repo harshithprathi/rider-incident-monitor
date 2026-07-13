@@ -24,6 +24,14 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# AI Coding Assistants
+.agents/
+.codex/
+.claude/
+.cursor/
+.gemini/
+.opencode/
+
 # misc
 /.sass-cache
 /connect.lock
@@ -60,15 +68,15 @@ vitest.config.*.timestamp*
 .env.staging
 .env.*.local
 
-# Agent/system markdown files
-/AGENTS.md
-/ARCHITECTURE.md
-/CLAUDE.md
-/COMPLETE_STATUS.md
-/COMPLETION_SUMMARY.md
-/FINAL_STATUS.md
-/FRONTEND_FIXES.md
-/IMPLEMENTATION_PLAN.md
-/PROJECT_OVERVIEW.md
-/PROJECT_STATUS.md
-/QUICK_START.md
+# Agent / Workspace documentation
+AGENTS.md
+ARCHITECTURE.md
+CLAUDE.md
+COMPLETE_STATUS.md
+COMPLETION_SUMMARY.md
+FINAL_STATUS.md
+FRONTEND_FIXES.md
+IMPLEMENTATION_PLAN.md
+PROJECT_OVERVIEW.md
+PROJECT_STATUS.md
+QUICK_START.md
