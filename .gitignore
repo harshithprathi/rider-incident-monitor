@@ -48,3 +48,27 @@ Thumbs.db
 .nx/polygraph
 .nx/self-healing
 .nx/migrate-runs
+test-output
+
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+
+# Agent/system markdown files
+/AGENTS.md
+/ARCHITECTURE.md
+/CLAUDE.md
+/COMPLETE_STATUS.md
+/COMPLETION_SUMMARY.md
+/FINAL_STATUS.md
+/FRONTEND_FIXES.md
+/IMPLEMENTATION_PLAN.md
+/PROJECT_OVERVIEW.md
+/PROJECT_STATUS.md
+/QUICK_START.md

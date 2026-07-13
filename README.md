@@ -1,107 +1,200 @@
-# New Nx Repository
+# Rider Incident Monitor
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Real-time safety platform — backend, real-time, and dashboard engineering.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+## How to Run Locally
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/docs/technologies/typescript/introduction?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-🚀 If you haven't connected to Nx Cloud yet, [complete your setup here](https://cloud.nx.app/get-started). Get faster builds with remote caching, distributed task execution, and self-healing CI. [See how your workspace can benefit](#nx-cloud).
-## Generate a library
+### Prerequisites
+- Docker and Docker Compose (recommended)
+- OR Node.js 20+, MongoDB 6+, Redis 7+
 
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
+### Using Docker Compose (Recommended)
+
+```bash
+docker compose up
 ```
 
-## Run tasks
+This starts:
+- **MongoDB** on port 27017
+- **Redis** on port 6379
+- **Backend API** on http://localhost:3000
+- **Frontend Dashboard** on http://localhost:4200
 
-To build the library use:
+### Manual Setup
 
-```sh
-npx nx run pkg1:build
+```bash
+# Install dependencies from workspace root
+npm install
+
+# Start MongoDB and Redis (e.g., via Docker)
+docker compose up mongodb redis -d
+
+# Seed sample data
+npx nx run backend-api:build
+node apps/backend-api/dist/utils/seed.js
+
+# Run backend (port 3000)
+npx nx serve backend-api
+
+# Run frontend (port 4200)
+npx nx serve frontend-dashboard
 ```
 
-To run any task with Nx use:
+### Sample Login Credentials
+- **Rider:** john@example.com / test123
+- **Responder:** sarah@emergency.com / test123
 
-```sh
-npx nx run <project-name>:<target>
+---
+
+## Data Model & Index Rationale
+
+### Entities
+
+| Collection | Purpose |
+|---|---|
+| `riders` | User profiles of riders |
+| `responders` | Responder profiles with org/region membership |
+| `organizations` | Organization configuration with available regions |
+| `incidents` | Emergency records (type, status, rider, location, sensor data) |
+| `incident_updates` | Immutable append-only log per incident with sequence numbers |
+| `safe_return_sessions` | Rider journey tracking with deadlines |
+| `idempotency_records` | Deduplication records for concurrent ingestion |
+
+### Compound Indexes
+
+| Index | Collection | Query Pattern |
+|---|---|---|
+| `{ organizationId, region, status, createdAt }` | incidents | Responder dashboard: filtered + sorted + paginated incident list scoped to their org/region |
+| `{ riderId, createdAt }` | incidents | Lookup incidents by rider, ordered by recency |
+| `{ type, createdAt }` | incidents | Filter incidents by type with time ordering |
+| `{ incidentId, sequenceNumber }` (unique) | incident_updates | R2: Gap-free sequence enforcement. Prevents duplicate sequence numbers under concurrency |
+| `{ incidentId, sequenceNumber: -1 }` | incident_updates | Feature B: Replay last 20 updates (descending sort for limit+reverse pattern) |
+| `{ incidentId, createdAt: -1 }` | incident_updates | Time-range queries on updates |
+| `{ riderId, status }` | safe_return_sessions | Lookup active session for a rider (unique per rider when ACTIVE) |
+| `{ key }` (unique) | idempotency_records | Feature C: Atomic reservation for concurrent deduplication |
+| `{ expiresAt }` (TTL) | idempotency_records | Auto-cleanup: expired records removed after 24 hours |
+
+---
+
+## Engineering Requirements
+
+### R1 — Race-Free Incident Status Transitions
+
+**Implementation:** `IncidentService.resolveIncident` uses `findOneAndUpdate` with a status guard condition:
+
+```typescript
+const incident = await Incident.findOneAndUpdate(
+  { _id: id, status: IncidentStatus.LIVE },  // Only update if currently LIVE
+  { $set: { status: IncidentStatus.RESOLVED } },
+  { new: true }
+);
 ```
 
-These targets are either [inferred automatically](https://nx.dev/docs/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+If two responders attempt to resolve simultaneously, exactly one wins (the one whose `findOneAndUpdate` matches first). The other gets `null` and receives an error response. No read-modify-write pattern — single atomic operation.
 
-[More about running tasks in the docs &raquo;](https://nx.dev/docs/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Safe Return completion uses the same pattern — `findOneAndUpdate` with `status: SafeReturnStatus.ACTIVE` guard.
 
-## Versioning and releasing
+### R2 — Causally-Ordered, Gap-Free Incident Update Stream
 
-To version and release the library use
+**Implementation:** `IncidentUpdateService.createUpdate` generates sequence numbers by querying the current max and incrementing. A unique compound index `(incidentId, sequenceNumber)` prevents duplicates. On collision (duplicate key error), the service retries with a bounded iterative loop (max 5 attempts).
 
-```
-npx nx release
-```
+**Replay:** Socket.IO `join_incident` replays the last 20 updates sorted by sequence number, then subscribes to live updates via EventBus. Clients receive `sequenceNumber` on every update and can detect gaps.
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+### R3 — Authorization & Tenancy Isolation
 
-[Learn more about Nx release &raquo;](https://nx.dev/docs/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+**Implementation:** A single `authorizeResponder` middleware enforces org/region scoping across ALL REST routes. The same check runs in `SocketHandler.handleJoinIncident` for WebSocket rooms.
 
-## Keep TypeScript project references up to date
-
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
-
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
-
-```sh
-npx nx sync
+```typescript
+// Middleware checks user's org/region matches the resource
+// Applied once, not copy-pasted per route
 ```
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+**IDOR protection:** `GET /incidents/:id` returns 403 if the incident's org/region doesn't match the authenticated user. `join_incident` socket event rejects with an error if scope doesn't match.
 
-```sh
-npx nx sync:check
-```
+### R4 — Crash-Safe Scheduling & Restart Reconciliation
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+**Implementation:** `StartupReconciliation` runs on application boot:
 
-## Nx Cloud
+1. **Cleans up stale jobs** — removes old Bull queue entries
+2. **Re-arms active sessions** — queries all `ACTIVE` safe return sessions, recalculates delays, and re-enqueues warning/deadline jobs
+3. **Fires missed deadlines** — any session whose deadline elapsed while the server was offline gets processed immediately (creates exactly one `SAFE_RETURN_MISSED` incident)
 
-Nx Cloud ensures a [fast and scalable CI](https://nx.dev/nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+Bull queue jobs are stored in Redis, so pending jobs survive process restart. The reconciliation ensures nothing is missed even if Redis was cleared.
 
-- [Remote caching](https://nx.dev/docs/features/ci-features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/docs/features/ci-features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/docs/features/ci-features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/docs/features/ci-features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### R5 — Graceful Shutdown with In-Flight Draining
 
-### Set up CI (non-Github Actions CI)
+**Implementation:** `Application.setupGracefulShutdown` handles SIGTERM/SIGINT:
 
-**Note:** This is only required if your CI provider is not GitHub Actions.
+1. Stop accepting new HTTP connections (`httpServer.close()`)
+2. Close Socket.IO connections (`socketHandler.gracefulShutdown()`)
+3. Close queue and drain in-flight jobs (`queueService.gracefulShutdown()`)
+4. Close database connections (`disconnectDatabase()`, `disconnectRedis()`)
 
-Use the following command to configure a CI workflow for your workspace:
+Guard flag `isShuttingDown` prevents double-shutdown. Uncaught exceptions and unhandled rejections also trigger graceful shutdown.
 
-```sh
-npx nx g ci-workflow
-```
+### R6 — Resilient Background Processing
 
-[Learn more about Nx on CI](https://nx.dev/docs/features/ci-features?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+**Implementation:**
+- **Retry strategy:** Bull default with 3 attempts and exponential backoff
+- **Dead-letter queue:** Failed jobs after all retries go to a dead-letter handler
+- **Correlation IDs:** `AsyncLocalStorage` provides request-scoped correlation IDs that flow through async operations including queue processors. The logger reads from `AsyncLocalStorage` automatically.
+- **Clean socket tracking:** Socket.IO disconnect handler removes socket from tracked rooms; no unbounded growth
 
-## Install Nx Console
+---
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+## Feature C — Concurrency Model
 
-[Install Nx Console &raquo;](https://nx.dev/docs/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Problem
+Rider devices retry on flaky networks. The same crash can arrive multiple times concurrently from retry storms. We must guarantee exactly one incident and one notification fan-out.
 
-## 🔗 Learn More
+### Solution: Atomic Reservation Pattern
 
-- [Nx Documentation](https://nx.dev/docs)
-- [Crafting Your Workspace Tutorial](https://nx.dev/docs/getting-started/tutorials/crafting-your-workspace)
-- [Module Boundaries](https://nx.dev/docs/features/enforce-module-boundaries)
-- [Releasing Packages](https://nx.dev/docs/features/manage-releases)
-- [Nx Plugins](https://nx.dev/docs/concepts/nx-plugins)
-- [Nx Cloud](https://nx.dev/nx-cloud)
+1. **Client supplies `Idempotency-Key` header** (e.g., `crash-{deviceId}-{timestamp}`)
 
-## 💬 Community
+2. **Reserve phase:** Attempt `IdempotencyRecord.create({ key, status: 'PROCESSING' })`. The unique index on `key` guarantees at most one succeeds. Concurrent duplicates get a `11000` duplicate key error.
 
-Join the Nx community:
+3. **Winner creates incident:** The one request that reserved the key creates the incident, generates the first update (sequence 1), and stores the result in the idempotency record.
 
-- [Discord](https://go.nx.dev/community)
-- [X (Twitter)](https://twitter.com/nxdevtools)
-- [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [YouTube](https://www.youtube.com/@nxdevtools)
-- [Blog](https://nx.dev/blog)
+4. **Losers wait or return cached:** Concurrent requests that failed reservation either:
+   - Get `REQUEST_IN_PROGRESS` if the winner is still processing
+   - Get the cached response from the completed idempotency record
+
+5. **TTL cleanup:** Idempotency records expire after 24 hours via MongoDB TTL index.
+
+### Failure Windows Considered
+
+| Window | Risk | Mitigation |
+|---|---|---|
+| Two requests arrive within microseconds | Double insert | Unique index on `key` — MongoDB rejects the second |
+| Winner crashes mid-processing | Orphaned PROCESSING record | TTL expiry cleans up; subsequent retry will find expired record and retry |
+| Network partition between app and DB | Partial write | Reservation is atomic (single document insert). Incident creation failure rolls back by not marking record COMPLETED |
+| Multiple server instances | Cross-instance race | MongoDB unique index is cluster-wide — works regardless of which server instance handles the request |
+
+### Test
+`concurrency.test.ts` fires 100 concurrent requests with the same idempotency key and verifies:
+- All return the same incident ID
+- Exactly one incident exists in database
+- Exactly one idempotency record exists
+- Sequence numbers have no gaps
+
+---
+
+## Trade-offs & Shortcuts
+
+1. **Sequence number generation:** Uses find-max-and-increment with retry instead of a dedicated counter collection. Acceptable for moderate concurrency; a counter collection with `$inc` would be better for extreme write loads.
+
+2. **Password hashing:** Uses bcrypt with 10 salt rounds. For production, consider Argon2id.
+
+3. **Logger:** Custom structured logger instead of Winston/Pino. Keeps dependency count low but lacks features like log rotation and transports.
+
+4. **Frontend state:** Uses `useState` and `useContext` per requirements. No global state library — each page manages its own state.
+
+5. **Notification delivery:** Warning and deadline notifications are logged to console per the assignment guidance ("log to console").
+
+---
+
+## Tech Stack
+
+- **Backend:** Node.js, TypeScript, Express, MongoDB (Mongoose), Socket.IO, Bull + Redis
+- **Frontend:** React (hooks only), MUI component library, Recharts
+- **Infrastructure:** Docker Compose, Nx monorepo
