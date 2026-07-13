@@ -30,19 +30,32 @@ npm install
 docker compose up mongodb redis -d
 
 # Seed sample data
-npx nx run backend-api:build
-node apps/backend-api/dist/utils/seed.js
+npm run seed
 
 # Run backend (port 3000)
-npx nx serve backend-api
+npm run dev:backend
 
 # Run frontend (port 4200)
-npx nx serve frontend-dashboard
+npm run dev:frontend
 ```
 
 ### Sample Login Credentials
 - **Rider:** john@example.com / test123
 - **Responder:** sarah@emergency.com / test123
+
+### Enhanced Authentication Features
+The application features a complete authentication suite:
+1. **Signup/Registration UI:** Switch to the **Register** tab on the login screen to create a new account.
+   - Riders input Name, Email, Phone, and Password.
+   - Responders additionally select their Emergency Agency and Region from dynamic dropdowns populated from the database.
+2. **OTP Login:** Click **Login via OTP** on the sign-in tab.
+   - Enter your email and click **Request OTP**.
+   - Check the backend console log for the 6-digit verification code (e.g. `[OTP] Verification Code: 123456`).
+   - Enter the code in the UI and click **Sign In**.
+3. **Forgot/Reset Password Flow:** Click **Forgot Password?** below the password field.
+   - Enter your email, select user type, and click **Send Code**.
+   - Copy the 6-digit reset code from the backend console log (e.g. `[PASSWORD_RESET] Code: 654321`).
+   - Input the code and your new password to reset it.
 
 ---
 

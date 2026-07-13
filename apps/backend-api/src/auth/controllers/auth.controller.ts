@@ -17,27 +17,26 @@ export class AuthController {
   /**
    * POST /api/auth/login
    * Authenticate user (rider or responder)
+   * Smart login: automatically detects user type if credentials match
    */
   login = async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password, userType } = req.body;
 
-      if (!email || !password || !userType) {
+      if (!email || !password) {
         res.status(400).json({
           error: {
             code: 'MISSING_FIELDS',
-            message: 'Email, password, and userType are required',
+            message: 'Email and password are required',
           },
         });
         return;
       }
 
-      let result;
-      if (userType === 'rider') {
-        result = await this.authService.authenticateRider(email, password);
-      } else if (userType === 'responder') {
-        result = await this.authService.authenticateResponder(email, password);
-      } else {
+      // If userType is not provided or invalid, try to auto-detect
+      const requestedType = userType?.toLowerCase();
+      
+      if (requestedType && requestedType !== 'rider' && requestedType !== 'responder') {
         res.status(400).json({
           error: {
             code: 'INVALID_USER_TYPE',
@@ -46,6 +45,9 @@ export class AuthController {
         });
         return;
       }
+
+      // Use smart authentication that auto-detects user type
+      const result = await this.authService.authenticateUser(email, password, requestedType);
 
       if (result.error) {
         res.status(401).json(result);
@@ -167,6 +169,110 @@ export class AuthController {
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Failed to list organizations',
+        },
+      });
+    }
+  };
+
+  /**
+   * POST /api/auth/otp/request
+   * Generate and send OTP to user
+   */
+  requestOtp = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, userType } = req.body;
+      const result = await this.authService.requestOtp(email, userType);
+
+      if (result.error) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error('Request OTP controller error', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to request OTP',
+        },
+      });
+    }
+  };
+
+  /**
+   * POST /api/auth/otp/login
+   * Verify OTP and return session token
+   */
+  verifyOtpLogin = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, code, userType } = req.body;
+      const result = await this.authService.verifyOtpAndLogin(email, code, userType);
+
+      if (result.error) {
+        res.status(401).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error('Verify OTP login controller error', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to verify OTP',
+        },
+      });
+    }
+  };
+
+  /**
+   * POST /api/auth/password/forgot
+   * Generate password reset code
+   */
+  requestPasswordReset = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, userType } = req.body;
+      const result = await this.authService.requestPasswordReset(email, userType);
+
+      if (result.error) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error('Forgot password controller error', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to request password reset',
+        },
+      });
+    }
+  };
+
+  /**
+   * POST /api/auth/password/reset
+   * Reset password with code
+   */
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, code, newPassword, userType } = req.body;
+      const result = await this.authService.resetPassword(email, code, newPassword, userType);
+
+      if (result.error) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error('Reset password controller error', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to reset password',
         },
       });
     }

@@ -29,7 +29,7 @@ import { errorHandler, notFoundHandler } from './core/middlewares/error.middlewa
 import { authenticate } from './core/middlewares/auth.middleware';
 import { authorizeResponder, authorizeRider } from './core/middlewares/authorization.middleware';
 import { validate } from './core/middlewares/validation.middleware';
-import { loginValidation, registerRiderValidation, registerResponderValidation } from './auth/validators/auth.validators';
+import { loginValidation, registerRiderValidation, registerResponderValidation, requestOtpValidation, verifyOtpValidation, forgotPasswordValidation, resetPasswordValidation } from './auth/validators/auth.validators';
 import { createIncidentValidation, listIncidentsValidation, getIncidentValidation, resolveIncidentValidation, getIncidentUpdatesValidation } from './incidents/validators/incident.validators';
 import { createSessionValidation, completeSessionValidation, extendSessionValidation, getSessionValidation } from './safe-return/validators/safe-return.validators';
 import { AuthController } from './auth/controllers/auth.controller';
@@ -102,6 +102,10 @@ class Application {
     this.app.post('/api/auth/register/rider', validate(registerRiderValidation), authController.registerRider);
     this.app.post('/api/auth/register/responder', validate(registerResponderValidation), authController.registerResponder);
     this.app.get('/api/auth/organizations', authController.listOrganizations);
+    this.app.post('/api/auth/otp/request', validate(requestOtpValidation), authController.requestOtp);
+    this.app.post('/api/auth/otp/login', validate(verifyOtpValidation), authController.verifyOtpLogin);
+    this.app.post('/api/auth/password/forgot', validate(forgotPasswordValidation), authController.requestPasswordReset);
+    this.app.post('/api/auth/password/reset', validate(resetPasswordValidation), authController.resetPassword);
 
     // Incident routes (requires authentication + authorization + validation)
     this.app.post('/api/incidents', authenticate, validate(createIncidentValidation), incidentController.createIncident);

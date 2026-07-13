@@ -9,6 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, userType: 'rider' | 'responder') => Promise<void>;
+  loginWithOtp: (email: string, code: string, userType: 'rider' | 'responder') => Promise<void>;
   logout: () => void;
 }
 
@@ -70,6 +71,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const loginWithOtp = async (email: string, code: string, userType: 'rider' | 'responder') => {
+    try {
+      const response = await apiService.loginWithOtp(email, code, userType);
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (!response.data) {
+        throw new Error('Invalid response from server');
+      }
+
+      const { token: newToken, user: newUser } = response.data;
+
+      // Store in state and localStorage
+      setToken(newToken);
+      setUser(newUser);
+      localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(newUser));
+
+      // Connect socket
+      socketService.connect(newToken);
+
+    } catch (error) {
+      console.error('OTP Login failed:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -86,6 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated: !!token && !!user,
     isLoading,
     login,
+    loginWithOtp,
     logout,
   };
 

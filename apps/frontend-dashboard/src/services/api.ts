@@ -140,6 +140,51 @@ class ApiService {
     return response.data;
   }
 
+  async requestOtp(email: string, userType: 'rider' | 'responder') {
+    const response = await this.client.post<ApiResponse<{ success: boolean }>>(
+      '/api/auth/otp/request',
+      { email, userType }
+    );
+    return response.data;
+  }
+
+  async loginWithOtp(email: string, code: string, userType: 'rider' | 'responder') {
+    const response = await this.client.post<ApiResponse<AuthResponse>>(
+      '/api/auth/otp/login',
+      { email, code, userType }
+    );
+    return response.data;
+  }
+
+  async requestPasswordReset(email: string, userType: 'rider' | 'responder') {
+    const response = await this.client.post<ApiResponse<{ success: boolean }>>(
+      '/api/auth/password/forgot',
+      { email, userType }
+    );
+    return response.data;
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string, userType: 'rider' | 'responder') {
+    const response = await this.client.post<ApiResponse<{ success: boolean }>>(
+      '/api/auth/password/reset',
+      { email, code, newPassword, userType }
+    );
+    return response.data;
+  }
+
+  async registerRider(data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+  }) {
+    const response = await this.client.post<ApiResponse<AuthResponse>>(
+      '/api/auth/register/rider',
+      data
+    );
+    return response.data;
+  }
+
   async listOrganizations() {
     const response = await this.client.get<ApiResponse<{ organizations: any[] }>>(
       '/api/auth/organizations'

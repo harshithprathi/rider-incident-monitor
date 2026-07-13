@@ -16,6 +16,7 @@ export const loginValidation = [
     .notEmpty()
     .withMessage('Password is required'),
   body('userType')
+    .optional()
     .isIn(['rider', 'responder'])
     .withMessage('userType must be "rider" or "responder"'),
 ];
@@ -71,3 +72,60 @@ export const registerResponderValidation = [
     .notEmpty()
     .withMessage('Region is required'),
 ];
+
+/** POST /api/auth/otp/request */
+export const requestOtpValidation = [
+  body('email')
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('userType')
+    .isIn(['rider', 'responder'])
+    .withMessage('userType must be "rider" or "responder"'),
+];
+
+/** POST /api/auth/otp/login */
+export const verifyOtpValidation = [
+  body('email')
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('code')
+    .isString()
+    .isLength({ min: 6, max: 6 })
+    .withMessage('Verification code must be exactly 6 digits'),
+  body('userType')
+    .isIn(['rider', 'responder'])
+    .withMessage('userType must be "rider" or "responder"'),
+];
+
+/** POST /api/auth/password/forgot */
+export const forgotPasswordValidation = [
+  body('email')
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('userType')
+    .isIn(['rider', 'responder'])
+    .withMessage('userType must be "rider" or "responder"'),
+];
+
+/** POST /api/auth/password/reset */
+export const resetPasswordValidation = [
+  body('email')
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('code')
+    .isString()
+    .isLength({ min: 6, max: 6 })
+    .withMessage('Verification code must be exactly 6 digits'),
+  body('newPassword')
+    .isString()
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters'),
+  body('userType')
+    .isIn(['rider', 'responder'])
+    .withMessage('userType must be "rider" or "responder"'),
+];
+
