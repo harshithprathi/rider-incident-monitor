@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "seed": "ts-node --project apps/backend-api/tsconfig.app.json apps/backend-api/src/utils/seed.ts",
+    "seed": "ts-node --project apps/backend-api/tsconfig.app.json apps/backend-api/src/core/utils/seed.ts",
     "dev:backend": "nx serve backend-api",
     "dev:frontend": "nx serve frontend-dashboard",
     "build:all": "nx run-many --target=build --all",

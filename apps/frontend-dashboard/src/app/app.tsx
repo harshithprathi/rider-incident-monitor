@@ -1,11 +1,11 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
-import { AuthProvider, useAuth } from '../context/AuthContext';
-import { LoginPage } from '../pages/LoginPage';
-import { IncidentListPage } from '../pages/IncidentListPage';
-import { IncidentDetailsPage } from '../pages/IncidentDetailsPage';
-import { RiderDashboardPage } from '../pages/RiderDashboardPage';
+import { AuthProvider, useAuth } from '../features/auth';
+import { LoginPage } from '../features/auth';
+import { IncidentListPage } from '../features/incidents';
+import { IncidentDetailsPage } from '../features/incidents';
+import { RiderDashboardPage } from '../features/safe-return';
 
 const theme = createTheme({
   palette: {

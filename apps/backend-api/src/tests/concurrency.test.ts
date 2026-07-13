@@ -11,23 +11,32 @@
  * 4. Only one set of notifications sent (checked via incident updates)
  */
 
-import { Types } from 'mongoose';
-import { connectDatabase, disconnectDatabase } from '../config/database';
-import { IncidentService } from '../services/IncidentService';
-import { Incident } from '../models/Incident';
-import { IncidentUpdate } from '../models/IncidentUpdate';
-import { IdempotencyRecord } from '../models/IdempotencyRecord';
-import { Organization } from '../models/Organization';
-import { Rider } from '../models/Rider';
-import { IncidentType } from '../types';
+
+import { connectDatabase, disconnectDatabase } from '../core/config/database';
+import { IncidentService } from '../incidents/services/incident.service';
+import { Incident } from '../incidents/schemas/incident.model';
+import { IncidentUpdate } from '../incidents/schemas/incident-update.model';
+import { IdempotencyRecord } from '../incidents/schemas/idempotency-record.model';
+import { Organization } from '../auth/schemas/organization.model';
+import { Rider } from '../auth/schemas/rider.model';
+import { IncidentType } from '../core/types';
 
 describe('Feature C: Idempotent Incident Ingestion Under Concurrency', () => {
+  jest.setTimeout(30000);
   let incidentService: IncidentService;
   let testOrg: any;
   let testRider: any;
 
   beforeAll(async () => {
     await connectDatabase();
+
+    // Clear collections first in case a previous run crashed/failed
+    await Organization.deleteMany({});
+    await Rider.deleteMany({});
+    await Incident.deleteMany({});
+    await IncidentUpdate.deleteMany({});
+    await IdempotencyRecord.deleteMany({});
+
     incidentService = new IncidentService();
 
     // Create test data

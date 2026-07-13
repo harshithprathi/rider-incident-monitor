@@ -6,36 +6,36 @@ dotenv.config({ path: path.join(process.cwd(), '.env.local') });
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 // Register Mongoose models to prevent MissingSchemaError during population
-import './models/Organization';
-import './models/Rider';
-import './models/Responder';
-import './models/Incident';
-import './models/IncidentUpdate';
-import './models/SafeReturnSession';
-import './models/IdempotencyRecord';
+import './auth/schemas/organization.model';
+import './auth/schemas/rider.model';
+import './auth/schemas/responder.model';
+import './incidents/schemas/incident.model';
+import './incidents/schemas/incident-update.model';
+import './safe-return/schemas/safe-return-session.model';
+import './incidents/schemas/idempotency-record.model';
 
 import express, { Express } from 'express';
 import { createServer, Server as HTTPServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
-import { connectDatabase, disconnectDatabase } from './config/database';
-import { connectRedis, disconnectRedis } from './config/redis';
-import { QueueService } from './services/QueueService';
-import { SocketHandler } from './socket/socket-handler';
-import { QueueProcessors } from './jobs/queue-processors';
-import { StartupReconciliation } from './jobs/reconciliation';
-import { correlationId } from './middlewares/correlation.middleware';
-import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
-import { authenticate } from './middlewares/auth.middleware';
-import { authorizeResponder, authorizeRider } from './middlewares/authorization.middleware';
-import { validate } from './middlewares/validation.middleware';
-import { loginValidation, registerRiderValidation, registerResponderValidation } from './validators/auth.validators';
-import { createIncidentValidation, listIncidentsValidation, getIncidentValidation, resolveIncidentValidation, getIncidentUpdatesValidation } from './validators/incident.validators';
-import { createSessionValidation, completeSessionValidation, extendSessionValidation, getSessionValidation } from './validators/safe-return.validators';
-import { AuthController } from './controllers/AuthController';
-import { IncidentController } from './controllers/IncidentController';
-import { SafeReturnController } from './controllers/SafeReturnController';
-import { logger } from './utils/logger';
+import { connectDatabase, disconnectDatabase } from './core/config/database';
+import { connectRedis, disconnectRedis } from './core/config/redis';
+import { QueueService } from './core/jobs/queue.service';
+import { SocketHandler } from './core/socket/socket-handler';
+import { QueueProcessors } from './core/jobs/queue-processors';
+import { StartupReconciliation } from './core/jobs/reconciliation';
+import { correlationId } from './core/middlewares/correlation.middleware';
+import { errorHandler, notFoundHandler } from './core/middlewares/error.middleware';
+import { authenticate } from './core/middlewares/auth.middleware';
+import { authorizeResponder, authorizeRider } from './core/middlewares/authorization.middleware';
+import { validate } from './core/middlewares/validation.middleware';
+import { loginValidation, registerRiderValidation, registerResponderValidation } from './auth/validators/auth.validators';
+import { createIncidentValidation, listIncidentsValidation, getIncidentValidation, resolveIncidentValidation, getIncidentUpdatesValidation } from './incidents/validators/incident.validators';
+import { createSessionValidation, completeSessionValidation, extendSessionValidation, getSessionValidation } from './safe-return/validators/safe-return.validators';
+import { AuthController } from './auth/controllers/auth.controller';
+import { IncidentController } from './incidents/controllers/incident.controller';
+import { SafeReturnController } from './safe-return/controllers/safe-return.controller';
+import { logger } from './core/utils/logger';
 
 class Application {
   private app: Express;
@@ -52,8 +52,23 @@ class Application {
   private setupMiddleware(): void {
     // Security
     this.app.use(helmet());
+    
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'http://localhost:4200',
+      'http://localhost:4201',
+      'http://localhost:5173',
+      'http://127.0.0.1:4200',
+      'http://127.0.0.1:4201',
+    ];
+
     this.app.use(cors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:4200',
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
     }));
 
