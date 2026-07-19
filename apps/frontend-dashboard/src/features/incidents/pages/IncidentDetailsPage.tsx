@@ -65,11 +65,7 @@ export const IncidentDetailsPage: React.FC = () => {
     }
 
     // Join incident room
-    socketService.joinIncident(
-      id,
-      handleReplay,
-      handleLiveUpdate
-    );
+    socketService.joinIncident(id, handleReplay, handleLiveUpdate);
 
     socketConnectedRef.current = true;
     setIsSocketConnected(true);
@@ -108,30 +104,46 @@ export const IncidentDetailsPage: React.FC = () => {
     }
   };
 
-  const handleReplay = useCallback((data: { incidentId: string; updates: IncidentUpdate[]; count: number }) => {
-    console.log('Replay received:', data.count, 'updates');
-    setUpdates(data.updates);
-  }, []);
+  const handleReplay = useCallback(
+    (data: {
+      incidentId: string;
+      updates: IncidentUpdate[];
+      count: number;
+    }) => {
+      console.log('Replay received:', data.count, 'updates');
+      setUpdates(data.updates);
+    },
+    [],
+  );
 
-  const handleLiveUpdate = useCallback((data: { incidentId: string; update: IncidentUpdate }) => {
-    console.log('Live update received:', data.update.sequenceNumber);
-    
-    // Add to updates if not already present
-    setUpdates((prevUpdates) => {
-      const exists = prevUpdates.some((u) => u.sequenceNumber === data.update.sequenceNumber);
-      if (exists) {
-        return prevUpdates;
-      }
-      return [...prevUpdates, data.update].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-    });
-  }, []);
+  const handleLiveUpdate = useCallback(
+    (data: { incidentId: string; update: IncidentUpdate }) => {
+      console.log('Live update received:', data.update.sequenceNumber);
+
+      // Add to updates if not already present
+      setUpdates((prevUpdates) => {
+        const exists = prevUpdates.some(
+          (u) => u.sequenceNumber === data.update.sequenceNumber,
+        );
+        if (exists) {
+          return prevUpdates;
+        }
+        return [...prevUpdates, data.update].sort(
+          (a, b) => a.sequenceNumber - b.sequenceNumber,
+        );
+      });
+    },
+    [],
+  );
 
   const handleResolve = async () => {
     if (!id || !incident) return;
 
     const originalIncident = incident;
     // Optimistically update status to RESOLVED
-    setIncident((prev) => prev ? { ...prev, status: IncidentStatus.RESOLVED } : null);
+    setIncident((prev) =>
+      prev ? { ...prev, status: IncidentStatus.RESOLVED } : null,
+    );
     setIsResolving(true);
 
     try {
@@ -196,57 +208,77 @@ export const IncidentDetailsPage: React.FC = () => {
 
       {/* Incident Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Typography variant="h5">
-            Incident Details
-          </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            mb: 2,
+          }}
+        >
+          <Typography variant="h5">Incident Details</Typography>
           <Box>
             <Chip
               label={incident.status}
               color={isResolved ? 'success' : 'error'}
               sx={{ mr: 1 }}
             />
-            <Chip
-              label={incident.type.replace(/_/g, ' ')}
-              color="primary"
-            />
+            <Chip label={incident.type.replace(/_/g, ' ')} color="primary" />
           </Box>
         </Box>
 
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="body2" color="text.secondary">Rider</Typography>
-            <Typography variant="body1">{incident.riderId?.name || 'Unknown'}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Rider
+            </Typography>
+            <Typography variant="body1">
+              {incident.riderId?.name || 'Unknown'}
+            </Typography>
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="body2" color="text.secondary">Location</Typography>
-            <Typography variant="body1">{incident.location.address || 'N/A'}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Location
+            </Typography>
+            <Typography variant="body1">
+              {incident.location.address || 'N/A'}
+            </Typography>
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="body2" color="text.secondary">Created At</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Created At
+            </Typography>
             <Typography variant="body1">
               {format(new Date(incident.createdAt), 'MMM dd, yyyy HH:mm:ss')}
             </Typography>
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="body2" color="text.secondary">Region</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Region
+            </Typography>
             <Typography variant="body1">{incident.region}</Typography>
           </Grid>
 
           {incident.description && (
             <Grid size={12}>
-              <Typography variant="body2" color="text.secondary">Description</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Description
+              </Typography>
               <Typography variant="body1">{incident.description}</Typography>
             </Grid>
           )}
 
           {incident.responderId && (
             <Grid size={12}>
-              <Typography variant="body2" color="text.secondary">Responder</Typography>
-              <Typography variant="body1">{incident.responderId.name}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Responder
+              </Typography>
+              <Typography variant="body1">
+                {incident.responderId.name}
+              </Typography>
             </Grid>
           )}
         </Grid>
@@ -260,7 +292,11 @@ export const IncidentDetailsPage: React.FC = () => {
             aria-disabled={isResolved || isResolving}
             tabIndex={isResolved || isResolving ? -1 : 0}
           >
-            {isResolved ? 'Resolved' : isResolving ? 'Resolving...' : 'Resolve Incident'}
+            {isResolved
+              ? 'Resolved'
+              : isResolving
+                ? 'Resolving...'
+                : 'Resolve Incident'}
           </Button>
 
           {isSocketConnected && (
@@ -296,18 +332,25 @@ export const IncidentDetailsPage: React.FC = () => {
             {updates.map((update) => (
               <ListItem key={update._id} alignItems="flex-start" divider>
                 <ListItemText
-                  primaryTypographyProps={{ component: 'div' }}
-                  secondaryTypographyProps={{ component: 'div' }}
+                  slotProps={{
+                    primary: { component: 'div' },
+                    secondary: { component: 'div' },
+                  }}
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip label={`#${update.sequenceNumber}`} size="small" />
-                      <Typography variant="subtitle2">{update.type.replace(/_/g, ' ')}</Typography>
+                      <Typography variant="subtitle2">
+                        {update.type.replace(/_/g, ' ')}
+                      </Typography>
                     </Box>
                   }
                   secondary={
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="body2" color="text.secondary">
-                        {format(new Date(update.createdAt), 'MMM dd, yyyy HH:mm:ss')}
+                        {format(
+                          new Date(update.createdAt),
+                          'MMM dd, yyyy HH:mm:ss',
+                        )}
                       </Typography>
                       <Typography variant="body2" sx={{ mt: 1 }}>
                         {JSON.stringify(update.data, null, 2)}
