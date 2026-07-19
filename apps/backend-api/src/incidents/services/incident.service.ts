@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, QueryFilter } from 'mongoose';
 import { Incident } from '../schemas/incident.model';
 import { IdempotencyRecord } from '../schemas/idempotency-record.model';
 import { IncidentUpdateService } from './incident-update.service';
@@ -8,6 +8,9 @@ import {
   IncidentStatus,
   IncidentUpdateType,
   ApiResponse,
+  ILocation,
+  ICrashData,
+  IUnfilteredData,
 } from '../../core/types';
 import { logger } from '../../core/utils/logger';
 
@@ -29,121 +32,135 @@ export class IncidentService {
     data: {
       type: IncidentType;
       riderId: string;
-      location: any;
+      location: ILocation;
       organizationId: string;
       region: string;
-      processedData?: any;
-      unfilteredData?: any;
+      processedData?: ICrashData;
+      unfilteredData?: IUnfilteredData;
       description?: string;
-    }
+    },
+    _retryCount = 0
   ): Promise<ApiResponse<{ incident: IIncident }>> {
     try {
-      // Step 1: Try to atomically reserve the idempotency key
-      // This prevents race conditions through unique constraint
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      
-      let idempotencyRecord = await IdempotencyRecord.findOne({ key: idempotencyKey });
-      
-      if (idempotencyRecord) {
-        // Key exists - return existing incident
-        if (idempotencyRecord.response) {
+      const STALE_THRESHOLD_MS = 60000; // 60 seconds
+
+      let existingRecord: any = null;
+      let isNewRecord = false;
+
+      try {
+        existingRecord = await IdempotencyRecord.findOneAndUpdate(
+          { key: idempotencyKey },
+          {
+            $setOnInsert: {
+              key: idempotencyKey,
+              incidentId: new Types.ObjectId(),
+              status: 'PROCESSING',
+              response: {},
+              expiresAt,
+            },
+          },
+          { upsert: true, new: false }
+        );
+        isNewRecord = !existingRecord;
+      } catch (error: any) {
+        // If an extreme race condition causes a duplicate key error, we treat it as record already exists (lost race)
+        if (error.code === 11000) {
+          existingRecord = await IdempotencyRecord.findOne({ key: idempotencyKey });
+          isNewRecord = false;
+        } else {
+          throw error;
+        }
+      }
+
+      // Step 2a: We won the race — create the incident
+      if (isNewRecord) {
+        logger.info('Won idempotency race (atomic upsert)', { idempotencyKey });
+
+        const incident = await Incident.create({
+          type: data.type,
+          status: IncidentStatus.LIVE,
+          riderId: new Types.ObjectId(data.riderId),
+          location: data.location,
+          organizationId: new Types.ObjectId(data.organizationId),
+          region: data.region,
+          processedData: data.processedData,
+          unfilteredData: data.unfilteredData,
+          description: data.description,
+        });
+
+        logger.info('Incident created', {
+          incidentId: incident._id,
+          type: incident.type,
+        });
+
+        // Create first incident update (sequence 1)
+        await this.updateService.createUpdate({
+          incidentId: incident._id.toString(),
+          type: IncidentUpdateType.CREATED,
+          data: {
+            type: incident.type,
+            location: incident.location,
+            createdAt: incident.createdAt,
+          },
+          createdBy: data.riderId,
+          createdByModel: 'Rider',
+        });
+
+        const response: ApiResponse<{ incident: IIncident }> = {
+          data: { incident },
+          meta: {},
+        };
+
+        // Mark reservation as COMPLETED with the actual response
+        await IdempotencyRecord.findOneAndUpdate(
+          { key: idempotencyKey },
+          {
+            $set: {
+              incidentId: incident._id,
+              status: 'COMPLETED',
+              response: response as any,
+            },
+          }
+        );
+
+        return response;
+      }
+
+      // Step 2b: Record already existed
+      if (existingRecord) {
+        if (existingRecord.status === 'COMPLETED' && existingRecord.response && Object.keys(existingRecord.response).length > 0) {
           logger.info('Returning existing incident from idempotency record', {
             idempotencyKey,
-            incidentId: idempotencyRecord.incidentId,
+            incidentId: existingRecord.incidentId,
           });
-          return idempotencyRecord.response as ApiResponse<{ incident: IIncident }>;
-        } else {
-          // In-flight request - inform client
-          logger.warn('Concurrent request detected - in progress', {
-            idempotencyKey,
-          });
-          return {
-            error: {
-              code: 'REQUEST_IN_PROGRESS',
-              message: 'Request is being processed by another instance',
-            },
-          };
+          return existingRecord.response as ApiResponse<{ incident: IIncident }>;
         }
-      }
 
-      // Step 2: Create placeholder idempotency record (wins the race)
-      try {
-        const createdRecord = await IdempotencyRecord.create({
-          key: idempotencyKey,
-          incidentId: new Types.ObjectId(), // Temporary placeholder
-          response: {} as any, // Placeholder, will update after incident creation
-          expiresAt,
-        });
-        idempotencyRecord = createdRecord;
-        
-        logger.info('Won idempotency race', { idempotencyKey });
-      } catch (error: any) {
-        // Duplicate key error - another request won the race
-        if (error.code === 11000) {
-          logger.info('Lost idempotency race - retrying lookup', {
+        // Step 2c: Record is PROCESSING — check if stale
+        const recordAge = Date.now() - new Date(existingRecord.createdAt).getTime();
+
+        if (recordAge > STALE_THRESHOLD_MS && _retryCount < 1) {
+          logger.warn('Detected stale idempotency reservation, recovering', {
             idempotencyKey,
+            ageMs: recordAge,
           });
-          
-          // Wait briefly and retry lookup
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          const existing = await IdempotencyRecord.findOne({ key: idempotencyKey });
-          
-          if (existing?.response) {
-            return existing.response as ApiResponse<{ incident: IIncident }>;
-          }
-          
-          return {
-            error: {
-              code: 'REQUEST_IN_PROGRESS',
-              message: 'Request is being processed',
-            },
-          };
+
+          await IdempotencyRecord.deleteOne({ key: idempotencyKey });
+          return this.createIncidentIdempotent(idempotencyKey, data, _retryCount + 1);
         }
-        throw error;
+
+        // Still in progress (another live instance is working on it)
+        logger.warn('Concurrent request detected - in progress', { idempotencyKey });
+        return {
+          error: {
+            code: 'REQUEST_IN_PROGRESS',
+            message: 'Request is being processed by another instance',
+          },
+        };
       }
 
-      // Step 3: Create the incident (we won the race)
-      const incident = await Incident.create({
-        type: data.type,
-        status: IncidentStatus.LIVE,
-        riderId: new Types.ObjectId(data.riderId),
-        location: data.location,
-        organizationId: new Types.ObjectId(data.organizationId),
-        region: data.region,
-        processedData: data.processedData,
-        unfilteredData: data.unfilteredData,
-        description: data.description,
-      });
-
-      logger.info('Incident created', {
-        incidentId: incident._id,
-        type: incident.type,
-      });
-
-      // Step 4: Create first incident update (sequence 1)
-      await this.updateService.createUpdate({
-        incidentId: incident._id.toString(),
-        type: IncidentUpdateType.CREATED,
-        data: {
-          type: incident.type,
-          location: incident.location,
-          createdAt: incident.createdAt,
-        },
-      });
-
-      // Step 5: Update idempotency record with actual incident and response
-      const response: ApiResponse<{ incident: IIncident }> = {
-        data: { incident },
-        meta: {},
-      };
-
-      if (idempotencyRecord) {
-        idempotencyRecord.incidentId = incident._id;
-        idempotencyRecord.response = response as any;
-        await idempotencyRecord.save();
-      }
-
-      return response;
+      throw new Error('Unexpected idempotency execution path');
     } catch (error) {
       logger.error('Failed to create incident', error);
       throw error;
@@ -214,6 +231,7 @@ export class IncidentService {
           resolvedAt: new Date(),
         },
         createdBy: responderId,
+        createdByModel: 'Responder',
       });
 
       return {
@@ -245,7 +263,7 @@ export class IncidentService {
     const { organizationId, region, type, status, dateFrom, dateTo, cursor, limit = 20 } = params;
     
     try {
-      const filter: any = {
+      const filter: QueryFilter<IIncident> = {
         organizationId: new Types.ObjectId(organizationId),
         region,
       };
@@ -259,16 +277,20 @@ export class IncidentService {
       }
 
       if (dateFrom || dateTo) {
-        filter.createdAt = {};
-        if (dateFrom) filter.createdAt.$gte = dateFrom;
-        if (dateTo) filter.createdAt.$lte = dateTo;
+        const createdAtFilter: { $gte?: Date; $lte?: Date } = {};
+        if (dateFrom) createdAtFilter.$gte = dateFrom;
+        if (dateTo) createdAtFilter.$lte = dateTo;
+        filter.createdAt = createdAtFilter;
       }
 
       if (cursor) {
         // Cursor is base64 encoded createdAt timestamp
         const decodedCursor = Buffer.from(cursor, 'base64').toString('utf-8');
         const cursorDate = new Date(decodedCursor);
-        filter.createdAt = { ...(filter.createdAt || {}), $lt: cursorDate };
+        filter.createdAt = {
+          ...(filter.createdAt as Record<string, unknown> || {}),
+          $lt: cursorDate,
+        };
       }
 
       const incidents = await Incident.find(filter)

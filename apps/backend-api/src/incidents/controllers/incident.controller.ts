@@ -88,7 +88,16 @@ export class IncidentController {
    */
   listIncidents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       
       if (!user.organizationId || !user.region) {
         res.status(403).json({
@@ -138,7 +147,16 @@ export class IncidentController {
    */
   getIncident = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const { id } = req.params;
 
       if (!user.organizationId || !user.region) {
@@ -182,7 +200,16 @@ export class IncidentController {
    */
   resolveIncident = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const { id } = req.params;
 
       if (!user.organizationId || !user.region) {
@@ -227,7 +254,16 @@ export class IncidentController {
    */
   getIncidentUpdates = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       
       if (!user.organizationId || !user.region) {
         res.status(403).json({

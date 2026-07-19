@@ -1,5 +1,8 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HTTPServer } from 'http';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { getRedisClient } from '../config/redis';
+import Redis from 'ioredis';
 import { AuthService } from '../../auth/services/auth.service';
 import { IncidentUpdateService } from '../../incidents/services/incident-update.service';
 import { Incident } from '../../incidents/schemas/incident.model';
@@ -21,6 +24,8 @@ export class SocketHandler {
   private authService: AuthService;
   private updateService: IncidentUpdateService;
   private connectionCount: Map<string, number>; // Track connections per user
+  private pubClient: Redis;
+  private subClient: Redis;
 
   constructor(server: HTTPServer) {
     const allowedOrigins = [
@@ -44,6 +49,11 @@ export class SocketHandler {
       },
       transports: ['websocket', 'polling'],
     });
+
+    // Initialize Redis clients for pub/sub adapter
+    this.pubClient = getRedisClient().duplicate();
+    this.subClient = getRedisClient().duplicate();
+    this.io.adapter(createAdapter(this.pubClient, this.subClient));
 
     this.authService = new AuthService();
     this.updateService = new IncidentUpdateService();
@@ -359,6 +369,10 @@ export class SocketHandler {
 
     // Close server
     this.io.close();
+
+    // Close Redis adapter connections
+    await this.pubClient.quit();
+    await this.subClient.quit();
 
     logger.info('Socket.IO shutdown complete');
   }

@@ -1,15 +1,6 @@
 import { Schema, model } from 'mongoose';
 import { ISafeReturnSession, SafeReturnStatus } from '../../core/types';
-
-const locationSchema = new Schema(
-  {
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true },
-    address: { type: String },
-    timestamp: { type: Date, required: true },
-  },
-  { _id: false }
-);
+import { locationSchema } from '../../core/database/location.schema';
 
 const safeReturnSessionSchema = new Schema<ISafeReturnSession>(
   {
@@ -73,11 +64,7 @@ safeReturnSessionSchema.index({ riderId: 1, status: 1 });
 // Serves: Find all ACTIVE sessions on startup to re-arm jobs
 safeReturnSessionSchema.index({ status: 1, deadline: 1 });
 
-// Index for deadline queries - find sessions expiring soon
-// Serves: Proactive monitoring, deadline job scheduling
-safeReturnSessionSchema.index({ deadline: 1, status: 1 });
-
 // Compound index for organization/region filtering
-safeReturnSessionSchema.index({ organizationId: 1, region: 1 });
+// safeReturnSessionSchema.index({ organizationId: 1, region: 1 });
 
 export const SafeReturnSession = model<ISafeReturnSession>('SafeReturnSession', safeReturnSessionSchema);

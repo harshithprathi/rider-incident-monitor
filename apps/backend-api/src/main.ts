@@ -26,15 +26,9 @@ import { QueueProcessors } from './core/jobs/queue-processors';
 import { StartupReconciliation } from './core/jobs/reconciliation';
 import { correlationId } from './core/middlewares/correlation.middleware';
 import { errorHandler, notFoundHandler } from './core/middlewares/error.middleware';
-import { authenticate } from './core/middlewares/auth.middleware';
-import { authorizeResponder, authorizeRider } from './core/middlewares/authorization.middleware';
-import { validate } from './core/middlewares/validation.middleware';
-import { loginValidation, registerRiderValidation, registerResponderValidation, requestOtpValidation, verifyOtpValidation, forgotPasswordValidation, resetPasswordValidation } from './auth/validators/auth.validators';
-import { createIncidentValidation, listIncidentsValidation, getIncidentValidation, resolveIncidentValidation, getIncidentUpdatesValidation } from './incidents/validators/incident.validators';
-import { createSessionValidation, completeSessionValidation, extendSessionValidation, getSessionValidation } from './safe-return/validators/safe-return.validators';
-import { AuthController } from './auth/controllers/auth.controller';
-import { IncidentController } from './incidents/controllers/incident.controller';
-import { SafeReturnController } from './safe-return/controllers/safe-return.controller';
+import { authRouter } from './auth/auth.routes';
+import { incidentRouter } from './incidents/incident.routes';
+import { safeReturnRouter } from './safe-return/safe-return.routes';
 import { logger } from './core/utils/logger';
 
 class Application {
@@ -83,10 +77,6 @@ class Application {
   }
 
   private setupRoutes(): void {
-    const authController = new AuthController();
-    const incidentController = new IncidentController();
-    const safeReturnController = new SafeReturnController();
-
     // Health check
     this.app.get('/health', (req, res) => {
       res.status(200).json({
@@ -97,29 +87,10 @@ class Application {
       });
     });
 
-    // Auth routes (no authentication required, but validated)
-    this.app.post('/api/auth/login', validate(loginValidation), authController.login);
-    this.app.post('/api/auth/register/rider', validate(registerRiderValidation), authController.registerRider);
-    this.app.post('/api/auth/register/responder', validate(registerResponderValidation), authController.registerResponder);
-    this.app.get('/api/auth/organizations', authController.listOrganizations);
-    this.app.post('/api/auth/otp/request', validate(requestOtpValidation), authController.requestOtp);
-    this.app.post('/api/auth/otp/login', validate(verifyOtpValidation), authController.verifyOtpLogin);
-    this.app.post('/api/auth/password/forgot', validate(forgotPasswordValidation), authController.requestPasswordReset);
-    this.app.post('/api/auth/password/reset', validate(resetPasswordValidation), authController.resetPassword);
-
-    // Incident routes (requires authentication + authorization + validation)
-    this.app.post('/api/incidents', authenticate, validate(createIncidentValidation), incidentController.createIncident);
-    this.app.get('/api/incidents', authenticate, authorizeResponder, validate(listIncidentsValidation), incidentController.listIncidents);
-    this.app.get('/api/incidents/:id', authenticate, authorizeResponder, validate(getIncidentValidation), incidentController.getIncident);
-    this.app.patch('/api/incidents/:id/resolve', authenticate, authorizeResponder, validate(resolveIncidentValidation), incidentController.resolveIncident);
-    this.app.get('/api/incidents/:id/updates', authenticate, authorizeResponder, validate(getIncidentUpdatesValidation), incidentController.getIncidentUpdates);
-
-    // Safe return routes (requires authentication + authorization + validation)
-    this.app.post('/api/safe-return', authenticate, authorizeRider, validate(createSessionValidation), safeReturnController.createSession);
-    this.app.get('/api/safe-return/active', authenticate, authorizeRider, safeReturnController.getActiveSession);
-    this.app.patch('/api/safe-return/:id/complete', authenticate, authorizeRider, validate(completeSessionValidation), safeReturnController.completeSession);
-    this.app.patch('/api/safe-return/:id/extend', authenticate, authorizeRider, validate(extendSessionValidation), safeReturnController.extendSession);
-    this.app.get('/api/safe-return/:id', authenticate, authorizeRider, validate(getSessionValidation), safeReturnController.getSession);
+    // Mount feature routers
+    this.app.use('/api/auth', authRouter);
+    this.app.use('/api/incidents', incidentRouter);
+    this.app.use('/api/safe-return', safeReturnRouter);
 
     // 404 handler
     this.app.use(notFoundHandler);

@@ -209,6 +209,7 @@ async function seed() {
           assignedAt: new Date(),
         },
         createdBy: responders[0]._id,
+        createdByModel: 'Responder',
       },
     ]);
 

@@ -8,8 +8,8 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, userType: 'rider' | 'responder') => Promise<void>;
-  loginWithOtp: (email: string, code: string, userType: 'rider' | 'responder') => Promise<void>;
+  login: (email: string, password: string, userType: 'rider' | 'responder') => Promise<string | undefined>;
+  loginWithOtp: (email: string, code: string, userType: 'rider' | 'responder') => Promise<string | undefined>;
   logout: () => void;
 }
 
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, userType: 'rider' | 'responder') => {
+  const login = async (email: string, password: string, userType: 'rider' | 'responder'): Promise<string | undefined> => {
     try {
       const response = await apiService.login(email, password, userType);
 
@@ -65,13 +65,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Connect socket
       socketService.connect(newToken);
 
+      return response.meta?.warning;
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
     }
   };
 
-  const loginWithOtp = async (email: string, code: string, userType: 'rider' | 'responder') => {
+  const loginWithOtp = async (email: string, code: string, userType: 'rider' | 'responder'): Promise<string | undefined> => {
     try {
       const response = await apiService.loginWithOtp(email, code, userType);
 
@@ -94,6 +95,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Connect socket
       socketService.connect(newToken);
 
+      return response.meta?.warning;
     } catch (error) {
       console.error('OTP Login failed:', error);
       throw error;

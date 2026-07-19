@@ -20,6 +20,7 @@ import { IdempotencyRecord } from '../incidents/schemas/idempotency-record.model
 import { Organization } from '../auth/schemas/organization.model';
 import { Rider } from '../auth/schemas/rider.model';
 import { IncidentType } from '../core/types';
+import { Types } from 'mongoose';
 
 describe('Feature C: Idempotent Incident Ingestion Under Concurrency', () => {
   jest.setTimeout(30000);
@@ -234,5 +235,48 @@ describe('Feature C: Idempotent Incident Ingestion Under Concurrency', () => {
     const incidentId2 = response2.data!.incident._id;
 
     expect(incidentId1.toString()).toBe(incidentId2.toString());
+  });
+
+  it('should recover from stale PROCESSING idempotency reservations', async () => {
+    const idempotencyKey = `crash-${Date.now()}-stale-recovery`;
+    
+    // 1. Manually insert a stale PROCESSING reservation (createdAt set to 70 seconds ago)
+    const seventySecondsAgo = new Date(Date.now() - 70 * 1000);
+    const staleRecord = await IdempotencyRecord.create({
+      key: idempotencyKey,
+      incidentId: new Types.ObjectId(),
+      status: 'PROCESSING',
+      response: {} as any,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    // Artificially change the createdAt date since timestamps option creates it with Date.now()
+    // Using native driver collection to bypass Mongoose timestamps middleware
+    await IdempotencyRecord.collection.updateOne({ _id: staleRecord._id }, { $set: { createdAt: seventySecondsAgo } });
+
+    const incidentData = {
+      type: IncidentType.ACTIVE_CRASH,
+      riderId: testRider._id.toString(),
+      location: {
+        latitude: 37.7749,
+        longitude: -122.4194,
+        address: 'Stale Recovery Location',
+        timestamp: new Date(),
+      },
+      organizationId: testOrg._id.toString(),
+      region: 'test-region',
+    };
+
+    // 2. Call createIncidentIdempotent
+    const response = await incidentService.createIncidentIdempotent(idempotencyKey, incidentData);
+
+    // 3. Verify it recovered, created the incident, and returns successfully
+    expect(response.data?.incident).toBeDefined();
+    
+    // Check in database that the idempotency record is updated to COMPLETED
+    const record = await IdempotencyRecord.findOne({ key: idempotencyKey });
+    expect(record).toBeDefined();
+    expect(record!.status).toBe('COMPLETED');
+    expect(record!.incidentId.toString()).toBe(response.data!.incident._id.toString());
   });
 });

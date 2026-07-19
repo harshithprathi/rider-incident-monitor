@@ -20,7 +20,16 @@ export class SafeReturnController {
    */
   createSession = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const { destination, destinationCoords, deadline, organizationId, region } = req.body;
 
       if (!destination || !deadline || !organizationId || !region) {
@@ -65,7 +74,16 @@ export class SafeReturnController {
    */
   completeSession = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const { id } = req.params;
       const sessionId = Array.isArray(id) ? id[0] : id;
 
@@ -94,7 +112,16 @@ export class SafeReturnController {
    */
   getSession = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const { id } = req.params;
       const sessionId = Array.isArray(id) ? id[0] : id;
 
@@ -123,7 +150,16 @@ export class SafeReturnController {
    */
   getActiveSession = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const result = await this.safeReturnService.getActiveSession(user.userId);
       res.status(200).json(result);
     } catch (error) {
@@ -143,7 +179,16 @@ export class SafeReturnController {
    */
   extendSession = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const user = req.user!;
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User authentication required',
+          },
+        });
+        return;
+      }
       const { id } = req.params;
       const { additionalMinutes } = req.body;
       const sessionId = Array.isArray(id) ? id[0] : id;

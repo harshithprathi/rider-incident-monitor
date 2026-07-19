@@ -14,6 +14,12 @@ const idempotencyRecordSchema = new Schema<IIdempotencyRecord>(
       ref: 'Incident',
       required: true,
     },
+    status: {
+      type: String,
+      enum: ['PROCESSING', 'COMPLETED'],
+      default: 'PROCESSING',
+      required: true,
+    },
     response: {
       type: Schema.Types.Mixed,
       required: true,

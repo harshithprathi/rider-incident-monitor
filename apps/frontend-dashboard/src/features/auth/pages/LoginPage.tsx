@@ -90,8 +90,19 @@ export const LoginPage: React.FC = () => {
 
     try {
       if (loginMode === 'password') {
-        await login(email, password, userType);
-        navigate(userType === 'rider' ? '/rider-dashboard' : '/incidents');
+        const warning = await login(email, password, userType);
+        if (warning) {
+          alert(warning);
+        }
+
+        // Navigate based on actual authenticated user role, not the dropdown selected type
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const actualUser = JSON.parse(storedUser);
+          navigate(actualUser.role === 'RIDER' ? '/rider-dashboard' : '/incidents');
+        } else {
+          navigate(userType === 'rider' ? '/rider-dashboard' : '/incidents');
+        }
       } else {
         // OTP login verification
         if (!otpSent) {
@@ -105,8 +116,19 @@ export const LoginPage: React.FC = () => {
           }
         } else {
           // Step 2: Verify OTP
-          await loginWithOtp(email, otpCode, userType);
-          navigate(userType === 'rider' ? '/rider-dashboard' : '/incidents');
+          const warning = await loginWithOtp(email, otpCode, userType);
+          if (warning) {
+            alert(warning);
+          }
+
+          // Navigate based on actual authenticated user role
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const actualUser = JSON.parse(storedUser);
+            navigate(actualUser.role === 'RIDER' ? '/rider-dashboard' : '/incidents');
+          } else {
+            navigate(userType === 'rider' ? '/rider-dashboard' : '/incidents');
+          }
         }
       }
     } catch (err: any) {

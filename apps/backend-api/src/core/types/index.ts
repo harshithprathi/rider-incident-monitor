@@ -124,6 +124,7 @@ export interface IIncidentUpdate extends Document {
   type: IncidentUpdateType;
   data: Record<string, any>;
   createdBy?: Types.ObjectId;
+  createdByModel?: 'Rider' | 'Responder';
   createdAt: Date;
 }
 
@@ -147,6 +148,7 @@ export interface IIdempotencyRecord extends Document {
   _id: Types.ObjectId;
   key: string;
   incidentId: Types.ObjectId;
+  status: 'PROCESSING' | 'COMPLETED';
   response: Record<string, any>;
   expiresAt: Date;
   createdAt: Date;
@@ -167,6 +169,7 @@ export interface ApiResponse<T = any> {
     cursor?: string;
     nextCursor?: string;
     hasMore?: boolean;
+    warning?: string;
   };
 }
 

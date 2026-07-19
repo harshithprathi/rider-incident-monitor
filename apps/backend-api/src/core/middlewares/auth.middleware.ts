@@ -11,7 +11,7 @@ import { logger } from '../utils/logger';
 export const authenticate = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     // Extract token from Authorization header
@@ -62,34 +62,5 @@ export const authenticate = async (
         message: 'Invalid authentication token',
       },
     });
-  }
-};
-
-/**
- * Optional authentication middleware
- * - Attaches user if token is present and valid
- * - Continues even if no token or invalid token
- */
-export const optionalAuthenticate = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      next();
-      return;
-    }
-
-    const token = authHeader.substring(7);
-    const authService = new AuthService();
-    const payload = authService.verifyToken(token);
-
-    (req as AuthenticatedRequest).user = payload;
-    next();
-  } catch (error) {
-    // Silent fail - continue without user
-    next();
   }
 };

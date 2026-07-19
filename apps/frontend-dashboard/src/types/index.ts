@@ -103,6 +103,7 @@ export interface ApiResponse<T = any> {
     cursor?: string;
     nextCursor?: string;
     hasMore?: boolean;
+    warning?: string;
   };
 }
 

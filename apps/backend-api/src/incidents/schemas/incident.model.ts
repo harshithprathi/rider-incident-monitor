@@ -1,15 +1,6 @@
 import { Schema, model } from 'mongoose';
 import { IIncident, IncidentType, IncidentStatus } from '../../core/types';
-
-const locationSchema = new Schema(
-  {
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true },
-    address: { type: String },
-    timestamp: { type: Date, required: true },
-  },
-  { _id: false }
-);
+import { locationSchema } from '../../core/database/location.schema';
 
 const crashDataSchema = new Schema(
   {
@@ -59,26 +50,22 @@ const incidentSchema = new Schema<IIncident>(
       type: String,
       enum: Object.values(IncidentType),
       required: true,
-      index: true, // For filtering by type
     },
     status: {
       type: String,
       enum: Object.values(IncidentStatus),
       required: true,
       default: IncidentStatus.LIVE,
-      index: true, // For filtering by status
     },
     riderId: {
       type: Schema.Types.ObjectId,
       ref: 'Rider',
       required: true,
-      index: true, // For rider-specific queries
     },
     responderId: {
       type: Schema.Types.ObjectId,
       ref: 'Responder',
       sparse: true,
-      index: true, // For responder-specific queries
     },
     location: {
       type: locationSchema,
@@ -100,12 +87,10 @@ const incidentSchema = new Schema<IIncident>(
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: true,
-      index: true, // For org-based authorization
     },
     region: {
       type: String,
       required: true,
-      index: true, // For region-based authorization
     },
   },
   {
@@ -121,10 +106,6 @@ incidentSchema.index({ organizationId: 1, region: 1, status: 1, createdAt: -1 })
 // Compound index for type-filtered lists
 // Serves: GET /incidents?type=SOS&dateFrom=...&dateTo=...
 incidentSchema.index({ organizationId: 1, region: 1, type: 1, createdAt: -1 });
-
-// Compound index for responder authorization and quick lookups
-// Serves: Authorization checks + incident details page
-incidentSchema.index({ _id: 1, organizationId: 1, region: 1 });
 
 // Index for rider's incident history
 // Serves: GET /riders/:id/incidents

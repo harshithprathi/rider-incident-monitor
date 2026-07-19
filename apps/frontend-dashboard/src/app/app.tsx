@@ -35,7 +35,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRole?: string
     return <Navigate to={user?.role === 'RIDER' ? '/rider-dashboard' : '/incidents'} replace />;
   }
 
-  return <>{children}</>;
+  return children;
 };
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

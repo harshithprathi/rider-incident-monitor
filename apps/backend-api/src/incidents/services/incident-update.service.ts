@@ -22,6 +22,7 @@ export class IncidentUpdateService {
     type: IncidentUpdateType;
     data: Record<string, unknown>;
     createdBy?: string;
+    createdByModel?: 'Rider' | 'Responder';
   }): Promise<IIncidentUpdate> {
     const incidentId = new Types.ObjectId(data.incidentId);
     const maxRetries = 5;
@@ -45,6 +46,7 @@ export class IncidentUpdateService {
           type: data.type,
           data: data.data,
           createdBy: data.createdBy ? new Types.ObjectId(data.createdBy) : undefined,
+          createdByModel: data.createdByModel,
         });
 
         logger.info('Incident update created', {

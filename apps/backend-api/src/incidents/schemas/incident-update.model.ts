@@ -7,7 +7,6 @@ const incidentUpdateSchema = new Schema<IIncidentUpdate>(
       type: Schema.Types.ObjectId,
       ref: 'Incident',
       required: true,
-      index: true, // For fetching updates by incident
     },
     sequenceNumber: {
       type: Number,
@@ -28,6 +27,13 @@ const incidentUpdateSchema = new Schema<IIncidentUpdate>(
       refPath: 'createdByModel',
       sparse: true,
     },
+    createdByModel: {
+      type: String,
+      enum: ['Rider', 'Responder'],
+      required: function(this: IIncidentUpdate) {
+        return !!this.createdBy;
+      },
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false }, // Updates are immutable
@@ -42,12 +48,8 @@ incidentUpdateSchema.index(
   { unique: true }
 );
 
-// Index for replay queries - get last N updates in order
-// Serves: Socket.IO replay feature - fetch last 20 updates
-incidentUpdateSchema.index({ incidentId: 1, sequenceNumber: -1 });
-
 // Index for time-based queries
 // Serves: Get updates within a time range
-incidentUpdateSchema.index({ incidentId: 1, createdAt: -1 });
+// incidentUpdateSchema.index({ incidentId: 1, createdAt: -1 });
 
 export const IncidentUpdate = model<IIncidentUpdate>('IncidentUpdate', incidentUpdateSchema);

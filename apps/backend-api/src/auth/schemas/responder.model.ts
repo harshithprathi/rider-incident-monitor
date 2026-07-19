@@ -29,30 +29,23 @@ const responderSchema = new Schema<IResponder>(
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: true,
-      index: true, // For org-based filtering
     },
     region: {
       type: String,
       required: true,
-      index: true, // For region-based filtering
     },
     isActive: {
       type: Boolean,
       default: true,
-      index: true, // For active responder queries
     },
   },
   {
     timestamps: true,
     collection: 'responders',
-  }
+  },
 );
 
-// Compound index for authorization queries - responders filtered by org AND region
-// Serves: "Find all incidents for responder's org/region"
-responderSchema.index({ organizationId: 1, region: 1 });
-
-// Compound index for active responders in an org/region
+// Compound index for active responders in an org/region and for authorization queries - responders filtered by org AND region
 // Serves: "Find active responders for assignment"
 responderSchema.index({ organizationId: 1, region: 1, isActive: 1 });
 
