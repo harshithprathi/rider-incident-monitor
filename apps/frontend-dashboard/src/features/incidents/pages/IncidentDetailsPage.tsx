@@ -296,6 +296,8 @@ export const IncidentDetailsPage: React.FC = () => {
             {updates.map((update) => (
               <ListItem key={update._id} alignItems="flex-start" divider>
                 <ListItemText
+                  primaryTypographyProps={{ component: 'div' }}
+                  secondaryTypographyProps={{ component: 'div' }}
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip label={`#${update.sequenceNumber}`} size="small" />
