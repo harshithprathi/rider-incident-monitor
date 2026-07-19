@@ -10,13 +10,15 @@ import {
   getSessionValidation,
 } from './validators/safe-return.validators';
 
-const router = Router();
-const safeReturnController = new SafeReturnController();
+export const getSafeReturnRouter = (): Router => {
+  const router = Router();
+  const safeReturnController = new SafeReturnController();
 
-router.post('/', authenticate, authorizeRider, validate(createSessionValidation), safeReturnController.createSession);
-router.get('/active', authenticate, authorizeRider, safeReturnController.getActiveSession);
-router.patch('/:id/complete', authenticate, authorizeRider, validate(completeSessionValidation), safeReturnController.completeSession);
-router.patch('/:id/extend', authenticate, authorizeRider, validate(extendSessionValidation), safeReturnController.extendSession);
-router.get('/:id', authenticate, authorizeRider, validate(getSessionValidation), safeReturnController.getSession);
+  router.post('/', authenticate, authorizeRider, validate(createSessionValidation), safeReturnController.createSession);
+  router.get('/active', authenticate, authorizeRider, safeReturnController.getActiveSession);
+  router.patch('/:id/complete', authenticate, authorizeRider, validate(completeSessionValidation), safeReturnController.completeSession);
+  router.patch('/:id/extend', authenticate, authorizeRider, validate(extendSessionValidation), safeReturnController.extendSession);
+  router.get('/:id', authenticate, authorizeRider, validate(getSessionValidation), safeReturnController.getSession);
 
-export { router as safeReturnRouter };
+  return router;
+};

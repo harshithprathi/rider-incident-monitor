@@ -11,13 +11,15 @@ import {
   getIncidentUpdatesValidation,
 } from './validators/incident.validators';
 
-const router = Router();
-const incidentController = new IncidentController();
+export const getIncidentRouter = (): Router => {
+  const router = Router();
+  const incidentController = new IncidentController();
 
-router.post('/', authenticate, validate(createIncidentValidation), incidentController.createIncident);
-router.get('/', authenticate, authorizeResponder, validate(listIncidentsValidation), incidentController.listIncidents);
-router.get('/:id', authenticate, authorizeResponder, validate(getIncidentValidation), incidentController.getIncident);
-router.patch('/:id/resolve', authenticate, authorizeResponder, validate(resolveIncidentValidation), incidentController.resolveIncident);
-router.get('/:id/updates', authenticate, authorizeResponder, validate(getIncidentUpdatesValidation), incidentController.getIncidentUpdates);
+  router.post('/', authenticate, validate(createIncidentValidation), incidentController.createIncident);
+  router.get('/', authenticate, authorizeResponder, validate(listIncidentsValidation), incidentController.listIncidents);
+  router.get('/:id', authenticate, authorizeResponder, validate(getIncidentValidation), incidentController.getIncident);
+  router.patch('/:id/resolve', authenticate, authorizeResponder, validate(resolveIncidentValidation), incidentController.resolveIncident);
+  router.get('/:id/updates', authenticate, authorizeResponder, validate(getIncidentUpdatesValidation), incidentController.getIncidentUpdates);
 
-export { router as incidentRouter };
+  return router;
+};

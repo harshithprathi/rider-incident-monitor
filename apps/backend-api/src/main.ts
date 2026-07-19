@@ -26,9 +26,9 @@ import { QueueProcessors } from './core/jobs/queue-processors';
 import { StartupReconciliation } from './core/jobs/reconciliation';
 import { correlationId } from './core/middlewares/correlation.middleware';
 import { errorHandler, notFoundHandler } from './core/middlewares/error.middleware';
-import { authRouter } from './auth/auth.routes';
-import { incidentRouter } from './incidents/incident.routes';
-import { safeReturnRouter } from './safe-return/safe-return.routes';
+import { getAuthRouter } from './auth/auth.routes';
+import { getIncidentRouter } from './incidents/incident.routes';
+import { getSafeReturnRouter } from './safe-return/safe-return.routes';
 import { logger } from './core/utils/logger';
 
 class Application {
@@ -88,9 +88,9 @@ class Application {
     });
 
     // Mount feature routers
-    this.app.use('/api/auth', authRouter);
-    this.app.use('/api/incidents', incidentRouter);
-    this.app.use('/api/safe-return', safeReturnRouter);
+    this.app.use('/api/auth', getAuthRouter());
+    this.app.use('/api/incidents', getIncidentRouter());
+    this.app.use('/api/safe-return', getSafeReturnRouter());
 
     // 404 handler
     this.app.use(notFoundHandler);
