@@ -453,6 +453,142 @@ async function seed() {
     await IdempotencyRecord.create(idempotencyRecordsData as any);
     logger.info('Idempotency records seeded', { count: idempotencyRecordsData.length });
 
+    // Programmatically generate a large set of additional records for manual demo/filtering
+    logger.info('Generating additional mock data programmatically...');
+    const extraIncidentsData: any[] = [];
+    const extraSafeReturnData: any[] = [];
+    const extraIdempotencyData: any[] = [];
+
+    const incidentTypes = [IncidentType.ACTIVE_CRASH, IncidentType.SOS, IncidentType.SAFE_RETURN_MISSED];
+    const incidentStatuses = [IncidentStatus.LIVE, IncidentStatus.RESOLVED];
+    const regions = ['north', 'south', 'east', 'west'];
+
+    // Generate 30 additional incidents
+    for (let i = 0; i < 30; i++) {
+      const type = incidentTypes[i % incidentTypes.length];
+      const status = incidentStatuses[i % incidentStatuses.length];
+      const region = regions[i % regions.length];
+      const rider = riders[i % riders.length];
+      
+      // Select appropriate responder for the region if resolved or assigned
+      const regionResponders = responders.filter(r => r.region === region && r.isActive);
+      const responder = regionResponders.length > 0 ? regionResponders[i % regionResponders.length] : null;
+
+      const daysAgo = (i + 1) * 0.25; // Spanned across the last 7 days
+      const createdAt = new Date(Date.now() - daysAgo * 24 * 3600 * 1000);
+      const resolvedAt = status === IncidentStatus.RESOLVED ? new Date(createdAt.getTime() + 45 * 60 * 1000) : undefined;
+
+      extraIncidentsData.push({
+        type,
+        status,
+        riderId: rider._id,
+        responderId: status === IncidentStatus.RESOLVED && responder ? responder._id : undefined,
+        location: {
+          latitude: 37.7749 + (Math.random() - 0.5) * 2.0, // spread across region coordinates
+          longitude: -122.4194 + (Math.random() - 0.5) * 2.0,
+          address: `Mock Address Area ${i + 1}, ${region.toUpperCase()} Division`,
+          timestamp: createdAt,
+        },
+        processedData: type === IncidentType.ACTIVE_CRASH ? minorCrashTelemetry : undefined,
+        organizationId: org._id,
+        region,
+        description: `Programmatic demo incident ${i + 1} (${type} - ${status})`,
+        createdAt,
+        resolvedAt,
+      });
+    }
+
+    const extraIncidents = await Incident.create(extraIncidentsData);
+    logger.info('Additional programmatically generated incidents created', { count: extraIncidents.length });
+
+    // Generate updates for the programmatically generated incidents
+    const extraUpdatesData: any[] = [];
+    for (let j = 0; j < extraIncidents.length; j++) {
+      const inc = extraIncidents[j];
+      
+      // Sequence 1: Created
+      extraUpdatesData.push({
+        incidentId: inc._id,
+        sequenceNumber: 1,
+        type: IncidentUpdateType.CREATED,
+        data: { type: inc.type, location: inc.location, createdAt: inc.createdAt },
+        createdAt: inc.createdAt,
+      });
+
+      // If resolved, add resolved status change update
+      if (inc.status === IncidentStatus.RESOLVED) {
+        const resolvedTime = new Date(inc.createdAt.getTime() + 45 * 60 * 1000);
+        extraUpdatesData.push({
+          incidentId: inc._id,
+          sequenceNumber: 2,
+          type: IncidentUpdateType.STATUS_CHANGE,
+          data: { oldStatus: IncidentStatus.LIVE, newStatus: IncidentStatus.RESOLVED, resolvedAt: resolvedTime },
+          createdAt: resolvedTime,
+          createdBy: inc.responderId,
+          createdByModel: 'Responder',
+        });
+      } else if (j % 3 === 0) {
+        // If live and j % 3 === 0, add a progress comment
+        extraUpdatesData.push({
+          incidentId: inc._id,
+          sequenceNumber: 2,
+          type: IncidentUpdateType.COMMENT,
+          data: { comment: `Automated status ping: Situation active, response monitoring in progress.` },
+          createdAt: new Date(inc.createdAt.getTime() + 10 * 60 * 1000),
+        });
+      }
+    }
+
+    await IncidentUpdate.create(extraUpdatesData as any);
+    logger.info('Additional programmatically generated incident updates created', { count: extraUpdatesData.length });
+
+    // Generate 15 additional safe return sessions
+    for (let k = 0; k < 15; k++) {
+      const rider = riders[k % riders.length];
+      const region = regions[k % regions.length];
+      const status = k % 3 === 0 ? SafeReturnStatus.ACTIVE : SafeReturnStatus.COMPLETED;
+      
+      const deadline = new Date(Date.now() + (k % 2 === 0 ? 1 : -1) * (k + 1) * 3600 * 1000);
+      const completedAt = status === SafeReturnStatus.COMPLETED ? new Date(deadline.getTime() - 20 * 60 * 1000) : undefined;
+
+      extraSafeReturnData.push({
+        riderId: rider._id,
+        destination: `Mock Safe Destination Suite ${k + 1}`,
+        destinationCoords: {
+          latitude: 37.7749 + (Math.random() - 0.5) * 1.5,
+          longitude: -122.4194 + (Math.random() - 0.5) * 1.5,
+          timestamp: new Date(),
+        },
+        deadline,
+        status,
+        completedAt,
+        organizationId: org._id,
+        region,
+      });
+    }
+
+    const extraSessions = await SafeReturnSession.create(extraSafeReturnData);
+    logger.info('Additional programmatically generated safe return sessions created', { count: extraSessions.length });
+
+    // Generate 10 additional idempotency records
+    for (let m = 0; m < 10; m++) {
+      const status = m % 2 === 0 ? 'COMPLETED' : 'PROCESSING';
+      const key = `idemp-key-generated-${m + 1}`;
+      const incidentId = m % 2 === 0 && m < extraIncidents.length ? extraIncidents[m]._id : new Types.ObjectId();
+
+      extraIdempotencyData.push({
+        key,
+        incidentId,
+        status,
+        response: status === 'COMPLETED' ? { data: { success: true }, meta: {} } : {},
+        expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+        createdAt: new Date(Date.now() - (m * 10) * 1000), // different ages
+      });
+    }
+
+    await IdempotencyRecord.create(extraIdempotencyData as any);
+    logger.info('Additional programmatically generated idempotency records created', { count: extraIdempotencyData.length });
+
     logger.info('Comprehensive Database Seeding Completed Successfully!');
     logger.info('Sample Login Credentials for Manual Demo:');
     logger.info('------------------------------------------');
